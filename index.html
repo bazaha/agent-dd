@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en" :class="{'dark': dark}" x-data="app()" x-init="init()" @keydown.window="shortcuts($event)">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentDD - AI Drug Design</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.3"></script>
+  <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/3dmol@1.7.1/build/3Dmol-min.js"></script>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+  <div class="flex h-screen">
+    <!-- Sidebar -->
+    <div class="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 p-4 space-y-4">
+      <div class="flex justify-between items-center">
+        <h1 class="text-xl font-semibold">AgentDD</h1>
+        <button @click="dark = !dark" class="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700" :class="{'bg-gray-200 dark:bg-gray-700': dark}">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10 2a1 1 0 01.993.883L11 3v1.051a7 7 0 013.94 12.183l-.293.293-.7-.7a1 1 0 00-1.497-1.32l-.083.094-.701.7a7 7 0 01-9.9-9.9l.7-.7a1 1 0 00-1.32-1.497l-.094.083-.7.701A9 9 0 1010 2z" />
+          </svg>
+        </button>
+      </div>
+      <nav class="space-y-1">
+        <button class="w-full text-left px-3 py-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700" @click="panel = 'generate'">Molecular Generation</button>
+        <button class="w-full text-left px-3 py-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700" @click="panel = 'predict'">Property Prediction</button>
+        <button class="w-full text-left px-3 py-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700" @click="panel = 'retro'">Retrosynthesis</button>
+        <button class="w-full text-left px-3 py-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700" @click="panel = 'interaction'">Interaction Analysis</button>
+      </nav>
+    </div>
+    <!-- Main Area -->
+    <div class="flex-1 grid grid-cols-2 grid-rows-2 gap-4 p-4">
+      <!-- Editor Panel -->
+      <div class="col-span-1 row-span-2 bg-white dark:bg-gray-800 rounded p-4 overflow-y-auto">
+        <template x-if="panel === 'generate'">
+          <div>
+            <h2 class="text-lg font-semibold mb-2">Molecular Generator</h2>
+            <textarea x-model="input" class="w-full h-32 p-2 bg-gray-100 dark:bg-gray-700 rounded"></textarea>
+            <button @click="generate()" class="mt-2 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Generate</button>
+            <pre class="mt-2 text-sm bg-gray-100 dark:bg-gray-700 p-2 rounded" x-text="output"></pre>
+          </div>
+        </template>
+        <template x-if="panel === 'predict'">
+          <div>
+            <h2 class="text-lg font-semibold mb-2">Property Prediction</h2>
+            <textarea x-model="input" class="w-full h-32 p-2 bg-gray-100 dark:bg-gray-700 rounded"></textarea>
+            <button @click="predict()" class="mt-2 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Predict</button>
+            <pre class="mt-2 text-sm bg-gray-100 dark:bg-gray-700 p-2 rounded" x-text="output"></pre>
+          </div>
+        </template>
+        <template x-if="panel === 'retro'">
+          <div>
+            <h2 class="text-lg font-semibold mb-2">Retrosynthesis</h2>
+            <textarea x-model="input" class="w-full h-32 p-2 bg-gray-100 dark:bg-gray-700 rounded"></textarea>
+            <button @click="retro()" class="mt-2 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Suggest</button>
+            <pre class="mt-2 text-sm bg-gray-100 dark:bg-gray-700 p-2 rounded" x-text="output"></pre>
+          </div>
+        </template>
+        <template x-if="panel === 'interaction'">
+          <div>
+            <h2 class="text-lg font-semibold mb-2">Interaction Analysis</h2>
+            <textarea x-model="input" class="w-full h-32 p-2 bg-gray-100 dark:bg-gray-700 rounded"></textarea>
+            <button @click="interaction()" class="mt-2 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Analyze</button>
+            <pre class="mt-2 text-sm bg-gray-100 dark:bg-gray-700 p-2 rounded" x-text="output"></pre>
+          </div>
+        </template>
+      </div>
+      <!-- 3D Viewer -->
+      <div id="viewer" class="col-span-1 row-span-1 bg-white dark:bg-gray-800 rounded p-4"></div>
+      <!-- Conversational AI Panel -->
+      <div class="col-span-1 row-span-1 flex flex-col bg-white dark:bg-gray-800 rounded p-4">
+        <div class="flex-1 overflow-y-auto space-y-2" id="chatLog">
+          <div class="text-gray-500 text-sm">Chat with AgentDD...</div>
+        </div>
+        <div class="mt-2 flex">
+          <input x-model="chat" @keydown.enter="sendChat" class="flex-1 p-2 bg-gray-100 dark:bg-gray-700 rounded-l" placeholder="Type a message..."/>
+          <button @click="sendChat" class="px-3 py-2 bg-blue-600 text-white rounded-r hover:bg-blue-700">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function app() {
+      return {
+        dark: false,
+        panel: 'generate',
+        input: '',
+        output: '',
+        chat: '',
+        init() {
+          this.dark = localStorage.getItem('theme') === 'dark'
+          this.$watch('dark', v => localStorage.setItem('theme', v ? 'dark' : 'light'))
+        },
+        generate() { this.ai('generate') },
+        predict() { this.ai('predict') },
+        retro() { this.ai('retro') },
+        interaction() { this.ai('interaction') },
+        ai(task) {
+          // Placeholder for AI integration
+          this.output = 'Running ' + task + ' on: ' + this.input
+        },
+        shortcuts(e) {
+          if (e.ctrlKey && e.key === 'k') { this.dark = !this.dark }
+        },
+        sendChat() {
+          if (this.chat.trim() === '') return;
+          const log = document.getElementById('chatLog');
+          const msg = document.createElement('div');
+          msg.textContent = this.chat;
+          msg.className = 'bg-blue-500 text-white p-2 rounded self-end';
+          log.appendChild(msg);
+          this.chat = '';
+          // Placeholder response
+          const reply = document.createElement('div');
+          reply.textContent = 'AI response to your message.';
+          reply.className = 'bg-gray-200 dark:bg-gray-700 p-2 rounded self-start';
+          log.appendChild(reply);
+          log.scrollTop = log.scrollHeight;
+        }
+      }
+    }
+
+    // Initialize 3Dmol viewer with sample molecule
+    window.addEventListener('DOMContentLoaded', () => {
+      const viewer = $3Dmol.createViewer('viewer', {backgroundColor: 'white'});
+      viewer.addModel('CCCCO', 'smi');
+      viewer.setStyle({}, {stick: {}});
+      viewer.zoomTo();
+      viewer.render();
+    });
+  </script>
+</body>
+</html>
